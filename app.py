@@ -11,19 +11,20 @@ app = Flask(__name__)
 # define the Hugging Face model we will use
 model_name = "amazon/chronos-t5-tiny"
 
-def get_coingecko_url(token):
-    base_url = "https://api.coingecko.com/api/v3/coins/"
-    token_map = {
-        'ETH': 'ethereum',
-        'SOL': 'solana',
-        'BTC': 'bitcoin',
-        'BNB': 'binancecoin',
-        'ARB': 'arbitrum'
+def get_binance_url(token):
+    base_url = "https://api.binance.com/api/v3/klines"
+    token_pair_map = {
+        'ETH': 'ETHUSDT',
+        'SOL': 'SOLUSDT',
+        'BTC': 'BTCUSDT',
+        'BNB': 'BNBUSDT',
+        'ARB': 'ARBUSDT'
     }
     
     token = token.upper()
-    if token in token_map:
-        url = f"{base_url}{token_map[token]}/market_chart?vs_currency=usd&days=30&interval=daily"
+    if token in token_pair_map:
+        symbol = token_pair_map[token]
+        url = f"{base_url}?symbol={symbol}&interval=1d&limit=30"
         return url
     else:
         raise ValueError("Unsupported token")
@@ -43,22 +44,18 @@ def get_inference(token):
         return Response(json.dumps({"pipeline error": str(e)}), status=500, mimetype='application/json')
 
     try:
-        # get the data from Coingecko
-        url = get_coingecko_url(token)
+        # get the data from Binance
+        url = get_binance_url(token)
     except ValueError as e:
         return Response(json.dumps({"error": str(e)}), status=400, mimetype='application/json')
 
-    headers = {
-        "accept": "application/json",
-        "x-cg-demo-api-key": "<Your Coingecko API key>" # replace with your API key
-    }
-
-    response = requests.get(url, headers=headers)
+    response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        df = pd.DataFrame(data["prices"])
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_asset_volume", "number_of_trades", "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit='ms')
+        df = df[["timestamp", "close"]]  # Keep only date and close price
         df.columns = ["date", "price"]
-        df["date"] = pd.to_datetime(df["date"], unit='ms')
         df = df[:-1] # removing today's price
         print(df.tail(5))
     else:
@@ -67,7 +64,7 @@ def get_inference(token):
                         mimetype='application/json')
 
     # define the context and the prediction length
-    context = torch.tensor(df["price"])
+    context = torch.tensor(df["price"].astype(float).values)
     prediction_length = 1
 
     try:
