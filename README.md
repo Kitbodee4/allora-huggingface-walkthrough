@@ -21,7 +21,7 @@ A complete working example is provided in the `docker-compose.yml` file.
 1. **Clone the Repository**
  
      ```sh
-    https://github.com/Kitbodee4/allora-huggingface-walkthrough.git
+    git clone https://github.com/Kitbodee4/allora-huggingface-walkthrough.git
     ```
      
 
